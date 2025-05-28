@@ -1,0 +1,77 @@
+---
+- name: Install Docker and run container
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install prerequisites
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - software-properties-common
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repo
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+        state: present
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Add ubuntu user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Create app directory
+      file:
+        path: /home/ubuntu/myapp
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copy Dockerfile
+      copy:
+        src: Dockerfile
+        dest: /home/ubuntu/myapp/Dockerfile
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Copy index.html
+      copy:
+        src: index.html
+        dest: /home/ubuntu/myapp/index.html
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Build Docker image
+      shell: docker build -t my-nginx-app /home/ubuntu/myapp
+      args:
+        executable: /bin/bash
+
+    - name: Run Docker container
+      shell: |
+        docker rm -f my-nginx-container || true
+        docker run -d -p 8080:80 --name my-nginx-container my-nginx-app
+      args:
+        executable: /bin/bash
